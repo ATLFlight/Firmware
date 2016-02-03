@@ -55,7 +55,11 @@ public:
 	 */
 	static uORB::KraitFastRpcChannel *GetInstance()
 	{
-		return &(_Instance);
+		if (_InstancePtr == NULL)
+		{
+			_InstancePtr = new uORB::KraitFastRpcChannel();
+		}
+		return _InstancePtr;
 	}
 
 	/**
@@ -119,7 +123,8 @@ public:
 	void Stop();
 
 private: // data members
-	static uORB::KraitFastRpcChannel _Instance;
+	static uORB::KraitFastRpcChannel *_InstancePtr;
+
 	uORBCommunicator::IChannelRxHandler *_RxHandler;
 	pthread_t   _RecvThread;
 	bool _ThreadStarted;

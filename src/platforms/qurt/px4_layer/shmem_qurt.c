@@ -47,8 +47,6 @@
 #include <shmem.h>
 #include <drivers/drv_hrt.h>
 
-#define SHMEM_DEBUG
-
 int mem_fd;
 unsigned char *map_base, *virt_addr;
 struct shmem_info *shmem_info_p;
@@ -91,6 +89,7 @@ int get_shmem_lock(void)
 
 	if (i > 100) { return -1; }
 
+	PX4_INFO("got shmem lock");
 	return 0; //got the lock
 
 }
@@ -100,6 +99,7 @@ void release_shmem_lock(void)
 	unsigned char *lock = (unsigned char *)(MAP_ADDRESS + LOCK_OFFSET);
 
 	*lock = 1;
+	PX4_INFO("released shmem lock");
 	return;
 }
 

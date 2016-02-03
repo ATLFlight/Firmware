@@ -30,6 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
+
 #include "px4muorb.hpp"
 #include "uORBFastRpcChannel.hpp"
 #include "uORBManager.hpp"
@@ -48,6 +49,7 @@ __END_DECLS
 
 int px4muorb_orb_initialize()
 {
+	PX4_INFO("initializing PX4 muorb services");
 	HAP_power_request(100, 100, 1000);
 	// register the fastrpc muorb with uORBManager.
 	uORB::Manager::get_instance()->set_uorb_communicator(uORB::FastRpcChannel::GetInstance());

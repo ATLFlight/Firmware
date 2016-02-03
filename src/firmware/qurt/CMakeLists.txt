@@ -24,6 +24,7 @@ else()
 		IDL_NAME px4muorb
 		SOURCES
 		${CMAKE_SOURCE_DIR}/src/platforms/qurt/dspal/dspal_stub.c
+		${CMAKE_SOURCE_DIR}/build_qurt_eagle_release/src/firmware/qurt/px4muorb_skel.c
 		${CMAKE_BINARY_DIR}/apps.h
 		LINK_LIBS
 		${module_libraries}

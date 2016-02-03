@@ -46,10 +46,11 @@ int dlinit(int a, char **b)
 int main(int argc, char *argv[])
 {
 	int ret = 0;
-	char *builtin[] = {"libgcc.so", "libc.so"};
+//	char *builtin[] = {"libgcc.so", "libc.so"};
 
 	printf("In DSPAL main\n");
-	dlinit(2, builtin);
+// TODO:
+//	dlinit(2, builtin);
 
 	do_dlopen();
 	return ret;

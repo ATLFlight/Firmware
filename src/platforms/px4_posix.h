@@ -41,12 +41,16 @@
 
 #include <px4_defines.h>
 #include <stdint.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <semaphore.h>
 
+#if defined(__PX4_QURT)
+#include <dspal_types.h>
+#else
+#include <sys/types.h>
+#endif
 
 /* Semaphore handling */
 
@@ -77,6 +81,7 @@ typedef sem_t px4_sem_t;
 
 #define px4_sem_init	 sem_init
 #define px4_sem_wait	 sem_wait
+
 #define px4_sem_post	 sem_post
 #define px4_sem_getvalue sem_getvalue
 #define px4_sem_destroy	 sem_destroy
