@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2016 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,26 +30,17 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-set(SENSORS_SRCS sensors.cpp)
-if (${OS} STREQUAL "qurt")
-   list(APPEND SENSORS_SRCS
-      sensors_init_qurt.cpp)
-elseif(${OS} STREQUAL "nuttx")
-   list(APPEND SENSORS_SRCS
-      sensors_init_nuttx.cpp)
-endif()
+
+include_directories(../../../../lib/DriverFramework/drivers)
 
 px4_add_module(
-	MODULE modules__sensors
-	MAIN sensors
-	PRIORITY "SCHED_PRIORITY_MAX-5"
-	STACK 1200
-	COMPILE_FLAGS
-		-Wno-type-limits
-		-O3
+	MODULE platforms__posix__drivers__df_bmp280_wrapper
+	MAIN df_bmp280_wrapper
 	SRCS
-		${SENSORS_SRCS}
+		df_bmp280_wrapper.cpp
 	DEPENDS
 		platforms__common
+		df_driver_framework
+		df_bmp280
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :
