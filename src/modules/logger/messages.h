@@ -49,12 +49,16 @@ enum class ULogMessageType : uint8_t {
 /* declare message data structs with byte alignment (no padding) */
 #pragma pack(push, 1)
 
-#define ULOG_MSG_HEADER_LEN 3 //accounts for msg_size and msg_type
-
 /** first bytes of the file */
 struct ulog_file_header_s {
 	uint8_t magic[8];
 	uint64_t timestamp;
+};
+
+#define ULOG_MSG_HEADER_LEN 3 //accounts for msg_size and msg_type
+struct ulog_message_header_s {
+	uint16_t msg_size;
+	uint8_t msg_type;
 };
 
 struct ulog_message_format_s {
@@ -115,7 +119,7 @@ struct ulog_message_logging_s {
 
 	uint8_t log_level; //same levels as in the linux kernel
 	uint64_t timestamp;
-	char message[255];
+	char message[128]; //defines the maximum length of a logged message string
 };
 
 struct ulog_message_parameter_header_s {

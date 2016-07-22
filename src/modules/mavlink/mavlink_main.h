@@ -169,6 +169,25 @@ public:
 		BROADCAST_MODE_ON
 	};
 
+	static const char *mavlink_mode_str(enum MAVLINK_MODE mode) {
+		switch (mode) {
+			case MAVLINK_MODE_NORMAL:
+				return "Normal";
+			case MAVLINK_MODE_CUSTOM:
+				return "Custom";
+			case MAVLINK_MODE_ONBOARD:
+				return "Onboard";
+			case MAVLINK_MODE_OSD:
+				return "OSD";
+			case MAVLINK_MODE_MAGIC:
+				return "Magic";
+			case MAVLINK_MODE_CONFIG:
+				return "Config";
+			default:
+				return "Unknown";
+		}
+	}
+
 	void			set_mode(enum MAVLINK_MODE);
 	enum MAVLINK_MODE	get_mode() { return _mode; }
 
@@ -261,7 +280,7 @@ public:
 	/**
 	 * Resend message as is, don't change sequence number and CRC.
 	 */
-	void			resend_message(mavlink_message_t *msg);
+	void			resend_message(mavlink_message_t *msg) { _mavlink_resend_uart(_channel, msg); }
 
 	void			handle_message(const mavlink_message_t *msg);
 
@@ -398,6 +417,9 @@ public:
 
 	void			set_logging_enabled(bool logging) { _logging_enabled = logging; }
 
+	int			get_data_rate() { return _datarate; }
+	void			set_data_rate(int rate) { if (rate > 0) _datarate = rate; }
+
 protected:
 	Mavlink			*next;
 
@@ -486,7 +508,7 @@ private:
 	bool _src_addr_initialized;
 	bool _broadcast_address_found;
 	bool _broadcast_address_not_found_warned;
-	int _sendto_result;
+	bool _broadcast_failed_warned;
 	uint8_t _network_buf[MAVLINK_MAX_PACKET_LEN];
 	unsigned _network_buf_len;
 #endif

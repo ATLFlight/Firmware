@@ -75,7 +75,7 @@ struct LoggerSubscription {
 class Logger
 {
 public:
-	Logger(size_t buffer_size, unsigned log_interval, bool log_on_start,
+	Logger(size_t buffer_size, uint32_t log_interval, bool log_on_start,
 	       bool log_until_shutdown, bool log_name_timestamp);
 
 	~Logger();
@@ -85,7 +85,7 @@ public:
 	 * before starting the logger.
 	 * @param file_name file name of the used log replay file. Will be copied.
 	 */
-	static void setReplayFile(const char *file_name);
+	void setReplayFile(const char *file_name);
 
 	/**
 	 * Add a topic to be logged. This must be called before start_log()
@@ -106,6 +106,9 @@ public:
 	static void usage(const char *reason);
 
 	void status();
+	void print_statistics();
+
+	void set_arm_override(bool override) { _arm_override = override; }
 
 private:
 	static void run_trampoline(int argc, char *argv[]);
@@ -186,7 +189,16 @@ private:
 	 */
 	bool get_log_time(struct tm *tt, bool boot_time = false);
 
-	static constexpr size_t 	MAX_TOPICS_NUM = 128; /**< Maximum number of logged topics */
+	/**
+	 * Parse a file containing a list of uORB topics to log, calling add_topic for each
+	 * @param fname name of file
+	 * @return number of topics added
+	 */
+	int add_topics_from_file(const char *fname);
+
+	void add_default_topics();
+
+	static constexpr size_t 	MAX_TOPICS_NUM = 64; /**< Maximum number of logged topics */
 	static constexpr unsigned	MAX_NO_LOGFOLDER = 999;	/**< Maximum number of log dirs */
 	static constexpr unsigned	MAX_NO_LOGFILE = 999;	/**< Maximum number of log files */
 #ifdef __PX4_POSIX_EAGLE
@@ -195,11 +207,15 @@ private:
 	static constexpr const char 	*LOG_ROOT = PX4_ROOTFSDIR"/fs/microsd/log";
 #endif
 
+	uint8_t						*_msg_buffer = nullptr;
+	int						_msg_buffer_len = 0;
 	bool						_task_should_exit = true;
 	char 						_log_dir[64];
 	bool						_has_log_dir = false;
 	bool						_enabled = false;
 	bool						_was_armed = false;
+	bool						_arm_override;
+
 
 	// statistics
 	hrt_abstime					_start_time; ///< Time when logging started (not the logger thread)
@@ -217,8 +233,7 @@ private:
 	param_t						_log_utc_offset;
 	orb_advert_t					_mavlink_log_pub = nullptr;
 	uint16_t					_next_topic_id; ///< id of next subscribed topic
-
-	static char		*_replay_file_name;
+	char						*_replay_file_name = nullptr;
 };
 
 } //namespace logger

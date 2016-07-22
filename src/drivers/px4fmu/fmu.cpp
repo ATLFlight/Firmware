@@ -1319,10 +1319,9 @@ PX4FMU::cycle()
 
 		} else {
 			// Scan the next protocol
-			set_rc_scan_state(RC_SCAN_SUMD);
+			set_rc_scan_state(RC_SCAN_PPM);
 		}
 
-		set_rc_scan_state(RC_SCAN_PPM);
 		break;
 
 	case RC_SCAN_PPM:
@@ -1989,9 +1988,9 @@ PX4FMU::pwm_ioctl(file *filp, int cmd, unsigned long arg)
 		    arg == DSMX8_BIND_PULSES) {
 
 			dsm_bind(DSM_CMD_BIND_POWER_DOWN, 0);
-			usleep(500000);
 
 			dsm_bind(DSM_CMD_BIND_SET_RX_OUT, 0);
+			usleep(500000);
 
 			dsm_bind(DSM_CMD_BIND_POWER_UP, 0);
 			usleep(72000);
@@ -2499,7 +2498,7 @@ fmu_new_mode(PortMode new_mode)
 		break;
 
 	case PORT_PWM3:
-		/* select 4-pin PWM mode */
+		/* select 3-pin PWM mode */
 		servo_mode = PX4FMU::MODE_3PWM;
 		break;
 

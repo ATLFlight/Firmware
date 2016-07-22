@@ -102,7 +102,6 @@
 #include <uORB/topics/system_power.h>
 #include <uORB/topics/servorail_status.h>
 #include <uORB/topics/wind_estimate.h>
-#include <uORB/topics/encoders.h>
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/time_offset.h>
 #include <uORB/topics/mc_att_ctrl_status.h>
@@ -144,8 +143,14 @@ static bool logwriter_should_exit = false;	/**< Logwriter thread exit flag */
 static const unsigned MAX_NO_LOGFOLDER = 999;	/**< Maximum number of log dirs */
 static const unsigned MAX_NO_LOGFILE = 999;		/**< Maximum number of log files */
 static const int LOG_BUFFER_SIZE_DEFAULT = 8192;
+
+#if defined __PX4_POSIX
+static const int MAX_WRITE_CHUNK = 2048;
+static const int MIN_BYTES_TO_WRITE = 512;
+#else
 static const int MAX_WRITE_CHUNK = 512;
 static const int MIN_BYTES_TO_WRITE = 512;
+#endif
 
 static bool _extended_logging = false;
 static bool _gpstime_only = false;
@@ -195,6 +200,10 @@ static pthread_t logwriter_pthread = 0;
 static pthread_attr_t logwriter_attr;
 
 static perf_counter_t perf_write;
+
+/* Keep track if we've already created a folder named sessXXX because
+ * we don't want to create yet another one. */
+static bool sess_folder_created = false;
 
 /**
  * Log buffer writing thread. Open and close file here.
@@ -452,13 +461,16 @@ int create_log_dir()
 		}
 
 	} else {
-		/* look for the next dir that does not exist */
-		while (dir_number <= MAX_NO_LOGFOLDER) {
+		/* Look for the next dir that does not exist.
+		 * However, if we've already crated a sessXXX folder in this session
+		 * let's re-use it. */
+		while (dir_number <= MAX_NO_LOGFOLDER && !sess_folder_created) {
 			/* format log dir: e.g. /fs/microsd/sess001 */
 			sprintf(log_dir, "%s/sess%03u", log_root, dir_number);
 			mkdir_ret = mkdir(log_dir, S_IRWXU | S_IRWXG | S_IRWXO);
 
 			if (mkdir_ret == 0) {
+				sess_folder_created = true;
 				break;
 
 			} else if (errno != EEXIST) {
@@ -1110,7 +1122,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	}
 
 	/* initialize log buffer with specified size */
-	PX4_WARN("log buffer size: %i bytes", log_buffer_size);
+	PX4_DEBUG("log buffer size: %i bytes", log_buffer_size);
 
 	if (OK != logbuffer_init(&lb, log_buffer_size)) {
 		PX4_WARN("can't allocate log buffer, exiting");
@@ -1183,7 +1195,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct servorail_status_s servorail_status;
 		struct satellite_info_s sat_info;
 		struct wind_estimate_s wind_estimate;
-		struct encoders_s encoders;
 		struct vtol_vehicle_status_s vtol_status;
 		struct time_offset_s time_offset;
 		struct mc_att_ctrl_status_s mc_att_ctrl_status;
@@ -1295,7 +1306,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int system_power_sub;
 		int servorail_status_sub;
 		int wind_sub;
-		int encoders_sub;
 		int tsync_sub;
 		int mc_att_ctrl_status_sub;
 		int ctrl_state_sub;
@@ -1341,7 +1351,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.tsync_sub = -1;
 	subs.mc_att_ctrl_status_sub = -1;
 	subs.ctrl_state_sub = -1;
-	subs.encoders_sub = -1;
 	subs.innov_sub = -1;
 	subs.cam_trig_sub = -1;
 	subs.replay_sub = -1;
@@ -1363,11 +1372,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 	pthread_cond_init(&logbuffer_cond, NULL);
 
 	/* track changes in sensor_combined topic */
-	hrt_abstime gyro_timestamp[3] = {0, 0, 0};
-	hrt_abstime accelerometer_timestamp[3] = {0, 0, 0};
-	hrt_abstime magnetometer_timestamp[3] = {0, 0, 0};
-	hrt_abstime barometer_timestamp[3] = {0, 0, 0};
-	hrt_abstime differential_pressure_timestamp[3] = {0, 0, 0};
+	hrt_abstime gyro_timestamp = 0;
+	hrt_abstime accelerometer_timestamp = 0;
+	hrt_abstime magnetometer_timestamp = 0;
+	hrt_abstime barometer_timestamp = 0;
 
 	/* initialize calculated mean SNR */
 	float snr_mean = 0.0f;
@@ -1388,7 +1396,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	// wakeup source
-	px4_pollfd_struct_t fds[1];
+	px4_pollfd_struct_t fds[2];
+	unsigned px4_pollfd_len = 0;
 
 	int poll_counter = 0;
 
@@ -1400,6 +1409,12 @@ int sdlog2_thread_main(int argc, char *argv[])
 			fds[0].fd = subs.sensor_sub;
 			fds[0].events = POLLIN;
 
+			subs.replay_sub = orb_subscribe(ORB_ID(ekf2_replay));
+			fds[1].fd = subs.replay_sub;
+			fds[1].events = POLLIN;
+
+			px4_pollfd_len = 2;
+
 			poll_to_logging_factor = 1;
 
 			break;
@@ -1409,6 +1424,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 			subs.sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 			fds[0].fd = subs.sensor_sub;
 			fds[0].events = POLLIN;
+
+			px4_pollfd_len = 1;
 
 			// TODO Remove hardcoded rate!
 			poll_to_logging_factor = 250 / (log_rate < 1 ? 1 : log_rate);
@@ -1420,6 +1437,8 @@ int sdlog2_thread_main(int argc, char *argv[])
 			subs.replay_sub = orb_subscribe(ORB_ID(ekf2_replay));
 			fds[0].fd = subs.replay_sub;
 			fds[0].events = POLLIN;
+
+			px4_pollfd_len = 1;
 
 			poll_to_logging_factor = 1;
 
@@ -1433,47 +1452,9 @@ int sdlog2_thread_main(int argc, char *argv[])
 
 	while (!main_thread_should_exit) {
 
-		// wait for up to 100ms for data
-		int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 100);
-
-		// timed out - periodic check for _task_should_exit
-		if (pret == 0) {
-			continue;
-		}
-
-		// this is undesirable but not much we can do - might want to flag unhappy status
-		if (pret < 0) {
-			PX4_WARN("poll error %d, %d", pret, errno);
-			// sleep a bit before next try
-			usleep(100000);
-			continue;
-		}
-
-		if (!fds[0].revents & POLLIN) {
-			continue;
-		}
-
-		switch (log_type) {
-			case LOG_TYPE_ALL:
-				orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
-				break;
-
-			case LOG_TYPE_NORMAL:
-				orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
-				break;
-
-			case LOG_TYPE_REPLAY_ONLY:
-				orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
-				break;
-		}
-
-		if ((poll_counter + 1) % poll_to_logging_factor == 0) {
-			poll_counter = 0;
-		} else {
-			// copy topic
-			poll_counter++;
-			continue;
-		}
+		/* Check below's topics first even if logging is not enabled.
+		 * We need to do this because should only poll further below if we're
+		 * actually going to orb_copy the data after the poll. */
 
 		/* --- VEHICLE COMMAND - LOG MANAGEMENT --- */
 		if (copy_if_updated(ORB_ID(vehicle_command), &subs.cmd_sub, &buf_cmd)) {
@@ -1498,6 +1479,55 @@ int sdlog2_thread_main(int argc, char *argv[])
 		}
 
 		if (!logging_enabled) {
+			usleep(50000);
+			continue;
+		}
+
+		// wait for up to 100ms for data
+		int pret = px4_poll(&fds[0], px4_pollfd_len, 100);
+
+		// timed out - periodic check for _task_should_exit
+		if (pret == 0) {
+			continue;
+		}
+
+		// this is undesirable but not much we can do - might want to flag unhappy status
+		if (pret < 0) {
+			PX4_WARN("poll error %d, %d", pret, errno);
+			// sleep a bit before next try
+			usleep(100000);
+			continue;
+		}
+
+		if ((poll_counter+1) >= poll_to_logging_factor) {
+			poll_counter = 0;
+		} else {
+
+			/* In this case, we still need to do orb_copy, otherwise we'll stall. */
+			switch (log_type) {
+				case LOG_TYPE_ALL:
+					if (fds[0].revents & POLLIN) {
+						orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
+					}
+
+					if (fds[1].revents & POLLIN) {
+						orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+					}
+					break;
+
+				case LOG_TYPE_NORMAL:
+					if (fds[0].revents & POLLIN) {
+						orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
+					}
+					break;
+
+				case LOG_TYPE_REPLAY_ONLY:
+					if (fds[0].revents & POLLIN) {
+						orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+					}
+					break;
+			}
+			poll_counter++;
 			continue;
 		}
 
@@ -1517,6 +1547,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_STAT.nav_state = buf_status.nav_state;
 			log_msg.body.log_STAT.arming_state = buf_status.arming_state;
 			log_msg.body.log_STAT.failsafe = (uint8_t) buf_status.failsafe;
+			log_msg.body.log_STAT.is_rot_wing = (uint8_t)buf_status.is_rotary_wing;
 			LOGBUFFER_WRITE_AND_COUNT(STAT);
 		}
 
@@ -1526,15 +1557,17 @@ int sdlog2_thread_main(int argc, char *argv[])
 			bool replay_updated = false;
 
 			if (log_type == LOG_TYPE_ALL) {
-				// When logging everything we are polling for sensor_combined, so
-				// we need to use the usual copy_if_updated which includes orb_subscribe.
-				replay_updated = copy_if_updated(ORB_ID(ekf2_replay), &subs.replay_sub, &buf.replay);
 
-			} else {
-				// We poll on the replay topic so we know that it was updated
-				// but we need to copy it again since we are re-using the buffer.
-				orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
-				replay_updated = true;
+				if (fds[1].revents & POLLIN) {
+					orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+					replay_updated = true;
+				}
+
+			} else if (log_type == LOG_TYPE_REPLAY_ONLY) {
+				if (fds[0].revents & POLLIN) {
+					orb_copy(ORB_ID(ekf2_replay), subs.replay_sub, &buf.replay);
+					replay_updated = true;
+				}
 			}
 
 			if (replay_updated) {
@@ -1544,12 +1577,12 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_RPL1.accelerometer_integral_dt = buf.replay.accelerometer_integral_dt;
 				log_msg.body.log_RPL1.magnetometer_timestamp = buf.replay.magnetometer_timestamp;
 				log_msg.body.log_RPL1.baro_timestamp = buf.replay.baro_timestamp;
-				log_msg.body.log_RPL1.gyro_integral_x_rad = buf.replay.gyro_integral_rad[0];
-				log_msg.body.log_RPL1.gyro_integral_y_rad = buf.replay.gyro_integral_rad[1];
-				log_msg.body.log_RPL1.gyro_integral_z_rad = buf.replay.gyro_integral_rad[2];
-				log_msg.body.log_RPL1.accelerometer_integral_x_m_s = buf.replay.accelerometer_integral_m_s[0];
-				log_msg.body.log_RPL1.accelerometer_integral_y_m_s = buf.replay.accelerometer_integral_m_s[1];
-				log_msg.body.log_RPL1.accelerometer_integral_z_m_s = buf.replay.accelerometer_integral_m_s[2];
+				log_msg.body.log_RPL1.gyro_x_rad = buf.replay.gyro_rad[0];
+				log_msg.body.log_RPL1.gyro_y_rad = buf.replay.gyro_rad[1];
+				log_msg.body.log_RPL1.gyro_z_rad = buf.replay.gyro_rad[2];
+				log_msg.body.log_RPL1.accelerometer_x_m_s2 = buf.replay.accelerometer_m_s2[0];
+				log_msg.body.log_RPL1.accelerometer_y_m_s2 = buf.replay.accelerometer_m_s2[1];
+				log_msg.body.log_RPL1.accelerometer_z_m_s2 = buf.replay.accelerometer_m_s2[2];
 				log_msg.body.log_RPL1.magnetometer_x_ga = buf.replay.magnetometer_ga[0];
 				log_msg.body.log_RPL1.magnetometer_y_ga = buf.replay.magnetometer_ga[1];
 				log_msg.body.log_RPL1.magnetometer_z_ga = buf.replay.magnetometer_ga[2];
@@ -1600,10 +1633,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 					log_msg.msg_type = LOG_RPL6_MSG;
 					log_msg.body.log_RPL6.time_airs_usec = buf.replay.asp_timestamp;
 					log_msg.body.log_RPL6.indicated_airspeed_m_s = buf.replay.indicated_airspeed_m_s;
-					log_msg.body.log_RPL6.true_airspeed_m_s = buf.replay.true_airspeed_m_s;
-					log_msg.body.log_RPL6.true_airspeed_unfiltered_m_s = buf.replay.true_airspeed_unfiltered_m_s;
-					log_msg.body.log_RPL6.air_temperature_celsius = buf.replay.air_temperature_celsius;
-					log_msg.body.log_RPL6.confidence = buf.replay.confidence;
+					log_msg.body.log_RPL6.true_airspeed_m_s = buf.replay.true_airspeed_m_s;;
 					LOGBUFFER_WRITE_AND_COUNT(RPL6);
 				}
 
@@ -1626,85 +1656,58 @@ int sdlog2_thread_main(int argc, char *argv[])
 
 		if (log_type == LOG_TYPE_ALL || log_type == LOG_TYPE_NORMAL) {
 
-			// We poll on sensor combined, so we know it has updated just now
-			// but we need to copy it again because we are re-using the buffer.
-			orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
+			if (fds[0].revents & POLLIN) {
+				orb_copy(ORB_ID(sensor_combined), subs.sensor_sub, &buf.sensor);
 
-			for (unsigned i = 0; i < 3; i++) {
 				bool write_IMU = false;
 				bool write_SENS = false;
 
-				if (buf.sensor.gyro_timestamp[i] != gyro_timestamp[i]) {
-					gyro_timestamp[i] = buf.sensor.gyro_timestamp[i];
+				if (buf.sensor.timestamp != gyro_timestamp) {
+					gyro_timestamp = buf.sensor.timestamp;
 					write_IMU = true;
 				}
 
-				if (buf.sensor.accelerometer_timestamp[i] != accelerometer_timestamp[i]) {
-					accelerometer_timestamp[i] = buf.sensor.accelerometer_timestamp[i];
+				if (buf.sensor.timestamp + buf.sensor.accelerometer_timestamp_relative != accelerometer_timestamp) {
+					accelerometer_timestamp = buf.sensor.timestamp + buf.sensor.accelerometer_timestamp_relative;
 					write_IMU = true;
 				}
 
-				if (buf.sensor.magnetometer_timestamp[i] != magnetometer_timestamp[i]) {
-					magnetometer_timestamp[i] = buf.sensor.magnetometer_timestamp[i];
+				if (buf.sensor.timestamp + buf.sensor.magnetometer_timestamp_relative != magnetometer_timestamp) {
+					magnetometer_timestamp = buf.sensor.timestamp + buf.sensor.magnetometer_timestamp_relative;
 					write_IMU = true;
 				}
 
-				if (buf.sensor.baro_timestamp[i] != barometer_timestamp[i]) {
-					barometer_timestamp[i] = buf.sensor.baro_timestamp[i];
-					write_SENS = true;
-				}
-
-				if (buf.sensor.differential_pressure_timestamp[i] != differential_pressure_timestamp[i]) {
-					differential_pressure_timestamp[i] = buf.sensor.differential_pressure_timestamp[i];
+				if (buf.sensor.timestamp + buf.sensor.baro_timestamp_relative != barometer_timestamp) {
+					barometer_timestamp = buf.sensor.timestamp + buf.sensor.baro_timestamp_relative;
 					write_SENS = true;
 				}
 
 				if (write_IMU) {
-					switch (i) {
-						case 0:
-							log_msg.msg_type = LOG_IMU_MSG;
-							break;
-						case 1:
-							log_msg.msg_type = LOG_IMU1_MSG;
-							break;
-						case 2:
-							log_msg.msg_type = LOG_IMU2_MSG;
-							break;
-					}
+					log_msg.msg_type = LOG_IMU_MSG;
 
-					log_msg.body.log_IMU.gyro_x = buf.sensor.gyro_rad_s[i * 3 + 0];
-					log_msg.body.log_IMU.gyro_y = buf.sensor.gyro_rad_s[i * 3 + 1];
-					log_msg.body.log_IMU.gyro_z = buf.sensor.gyro_rad_s[i * 3 + 2];
-					log_msg.body.log_IMU.acc_x = buf.sensor.accelerometer_m_s2[i * 3 + 0];
-					log_msg.body.log_IMU.acc_y = buf.sensor.accelerometer_m_s2[i * 3 + 1];
-					log_msg.body.log_IMU.acc_z = buf.sensor.accelerometer_m_s2[i * 3 + 2];
-					log_msg.body.log_IMU.mag_x = buf.sensor.magnetometer_ga[i * 3 + 0];
-					log_msg.body.log_IMU.mag_y = buf.sensor.magnetometer_ga[i * 3 + 1];
-					log_msg.body.log_IMU.mag_z = buf.sensor.magnetometer_ga[i * 3 + 2];
-					log_msg.body.log_IMU.temp_gyro = buf.sensor.gyro_temp[i];
-					log_msg.body.log_IMU.temp_acc = buf.sensor.accelerometer_temp[i];
-					log_msg.body.log_IMU.temp_mag = buf.sensor.magnetometer_temp[i];
+					log_msg.body.log_IMU.gyro_x = buf.sensor.gyro_rad[0];
+					log_msg.body.log_IMU.gyro_y = buf.sensor.gyro_rad[1];
+					log_msg.body.log_IMU.gyro_z = buf.sensor.gyro_rad[2];
+					log_msg.body.log_IMU.acc_x = buf.sensor.accelerometer_m_s2[0];
+					log_msg.body.log_IMU.acc_y = buf.sensor.accelerometer_m_s2[1];
+					log_msg.body.log_IMU.acc_z = buf.sensor.accelerometer_m_s2[2];
+					log_msg.body.log_IMU.mag_x = buf.sensor.magnetometer_ga[0];
+					log_msg.body.log_IMU.mag_y = buf.sensor.magnetometer_ga[1];
+					log_msg.body.log_IMU.mag_z = buf.sensor.magnetometer_ga[2];
+					log_msg.body.log_IMU.temp_gyro = 0;
+					log_msg.body.log_IMU.temp_acc = 0;
+					log_msg.body.log_IMU.temp_mag = 0;
 					LOGBUFFER_WRITE_AND_COUNT(IMU);
 				}
 
 				if (write_SENS) {
-					switch (i) {
-						case 0:
-							log_msg.msg_type = LOG_SENS_MSG;
-							break;
-						case 1:
-							log_msg.msg_type = LOG_AIR1_MSG;
-							break;
-						case 2:
-							continue;
-							break;
-					}
+					log_msg.msg_type = LOG_SENS_MSG;
 
-					log_msg.body.log_SENS.baro_pres = buf.sensor.baro_pres_mbar[i];
-					log_msg.body.log_SENS.baro_alt = buf.sensor.baro_alt_meter[i];
-					log_msg.body.log_SENS.baro_temp = buf.sensor.baro_temp_celcius[i];
-					log_msg.body.log_SENS.diff_pres = buf.sensor.differential_pressure_pa[i];
-					log_msg.body.log_SENS.diff_pres_filtered = buf.sensor.differential_pressure_filtered_pa[i];
+					log_msg.body.log_SENS.baro_pres = 0;
+					log_msg.body.log_SENS.baro_alt = buf.sensor.baro_alt_meter;
+					log_msg.body.log_SENS.baro_temp = buf.sensor.baro_temp_celcius;
+					log_msg.body.log_SENS.diff_pres = 0;
+					log_msg.body.log_SENS.diff_pres_filtered = 0;
 					LOGBUFFER_WRITE_AND_COUNT(SENS);
 				}
 			}
@@ -2133,6 +2136,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 				memcpy(&(log_msg.body.log_EST2.cov), buf.estimator_status.covariances, maxcopy2);
 				log_msg.body.log_EST2.gps_check_fail_flags = buf.estimator_status.gps_check_fail_flags;
 				log_msg.body.log_EST2.control_mode_flags = buf.estimator_status.control_mode_flags;
+				log_msg.body.log_EST2.health_flags = buf.estimator_status.health_flags;
 				LOGBUFFER_WRITE_AND_COUNT(EST2);
 
 				log_msg.msg_type = LOG_EST3_MSG;
@@ -2205,16 +2209,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_WIND.cov_x = buf.wind_estimate.covariance_north;
 				log_msg.body.log_WIND.cov_y = buf.wind_estimate.covariance_east;
 				LOGBUFFER_WRITE_AND_COUNT(WIND);
-			}
-
-			/* --- ENCODERS --- */
-			if (copy_if_updated(ORB_ID(encoders), &subs.encoders_sub, &buf.encoders)) {
-				log_msg.msg_type = LOG_ENCD_MSG;
-				log_msg.body.log_ENCD.cnt0 = buf.encoders.counts[0];
-				log_msg.body.log_ENCD.vel0 = buf.encoders.velocity[0];
-				log_msg.body.log_ENCD.cnt1 = buf.encoders.counts[1];
-				log_msg.body.log_ENCD.vel1 = buf.encoders.velocity[1];
-				LOGBUFFER_WRITE_AND_COUNT(ENCD);
 			}
 
 			/* --- TIMESYNC OFFSET --- */
