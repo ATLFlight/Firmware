@@ -732,8 +732,8 @@ Sensors::start()
 	/* start the task */
 	_sensors_task = px4_task_spawn_cmd("sensors",
 					   SCHED_DEFAULT,
-					   SCHED_PRIORITY_MAX - 5,
-					   2000,
+					   SCHED_PRIORITY_MAX - SCHED_PRIORITY_DEFAULT,
+					   1700,
 					   (px4_main_t)&Sensors::task_main_trampoline,
 					   nullptr);
 

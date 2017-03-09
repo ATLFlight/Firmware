@@ -1137,7 +1137,7 @@ int Ekf2::start()
 	/* start the task */
 	_control_task = px4_task_spawn_cmd("ekf2",
 					   SCHED_DEFAULT,
-					   SCHED_PRIORITY_MAX - 5,
+					   SCHED_PRIORITY_MAX - SCHED_PRIORITY_DEFAULT,
 					   5800,
 					   (px4_main_t)&Ekf2::task_main_trampoline,
 					   nullptr);

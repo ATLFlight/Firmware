@@ -322,7 +322,7 @@ int commander_main(int argc, char *argv[])
 		thread_should_exit = false;
 		daemon_task = px4_task_spawn_cmd("commander",
 					     SCHED_DEFAULT,
-					     SCHED_PRIORITY_DEFAULT + 40,
+					     SCHED_PRIORITY_MAX - SCHED_PRIORITY_DEFAULT,
 					     3600,
 					     commander_thread_main,
 					     (char * const *)&argv[0]);
@@ -1710,7 +1710,7 @@ int commander_thread_main(int argc, char *argv[])
 	(void)pthread_attr_getschedparam(&commander_low_prio_attr, &param);
 
 	/* low priority */
-	param.sched_priority = SCHED_PRIORITY_DEFAULT - 50;
+	param.sched_priority = SCHED_PRIORITY_DEFAULT + 20;
 	(void)pthread_attr_setschedparam(&commander_low_prio_attr, &param);
 #endif
 

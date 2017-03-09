@@ -252,7 +252,7 @@ extern "C" {
 		if (argc == 2 && strcmp(argv[1], "start") == 0) {
 			g_dspal_task = px4_task_spawn_cmd("dspal",
 							  SCHED_DEFAULT,
-							  SCHED_PRIORITY_MAX - 5,
+							  SCHED_PRIORITY_MAX - SCHED_PRIORITY_DEFAULT,
 							  1500,
 							  dspal_entry,
 							  argv);

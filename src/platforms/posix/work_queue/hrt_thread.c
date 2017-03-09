@@ -279,7 +279,7 @@ void hrt_work_queue_init(void)
 	// Create high priority worker thread
 	g_hrt_work.pid = px4_task_spawn_cmd("wkr_hrt",
 					    SCHED_DEFAULT,
-					    SCHED_PRIORITY_MAX,
+					    SCHED_PRIORITY_MAX - 20,
 					    2000,
 					    work_hrtthread,
 					    (char *const *)NULL);

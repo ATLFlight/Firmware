@@ -1368,8 +1368,8 @@ MulticopterAttitudeControl::start()
 	/* start the task */
 	_control_task = px4_task_spawn_cmd("mc_att_control",
 					   SCHED_DEFAULT,
-					   SCHED_PRIORITY_MAX - 5,
-					   1700,
+					   SCHED_PRIORITY_MAX - SCHED_PRIORITY_DEFAULT,
+					   1500,
 					   (px4_main_t)&MulticopterAttitudeControl::task_main_trampoline,
 					   nullptr);
 
