@@ -60,6 +60,8 @@ set(config_module_list
 	modules/commander
 	modules/navigator
 
+	modules/eprosima_cdr
+
 	lib/controllib
 	lib/mathlib
 	lib/mathlib/math/filter
