@@ -50,7 +50,7 @@
 #include <uORB/topics/input_rc.h>
 
 // Snapdraogon: use J12 (next to J13, power module side)
-#define SPEKTRUM_UART_DEVICE_PATH "/dev/tty-3"
+#define SPEKTRUM_UART_DEVICE_PATH "/dev/tty-1"
 
 #define UNUSED(x) (void)(x)
 
