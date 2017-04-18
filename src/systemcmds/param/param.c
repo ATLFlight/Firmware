@@ -281,6 +281,10 @@ do_save(const char *param_file_name)
 	int fd = open(param_file_name, O_WRONLY | O_CREAT, PX4_O_MODE_666);
 
 	if (fd < 0) {
+
+		// TODO-JYW: TESTING-TESTING:
+		PX4_INFO("open '%s' failed (%i)", param_file_name, errno);
+
 		PX4_ERR("open '%s' failed (%i)", param_file_name, errno);
 		return 1;
 	}
@@ -303,6 +307,9 @@ static int
 do_load(const char *param_file_name)
 {
 	int fd = open(param_file_name, O_RDONLY);
+
+	// TODO-JYW: TESTING-TESTING:
+	PX4_INFO("attempting to open '%s'", param_file_name);
 
 	if (fd < 0) {
 		PX4_ERR("open '%s' failed (%i)", param_file_name, errno);

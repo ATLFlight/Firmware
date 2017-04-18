@@ -627,6 +627,11 @@ static void autosave_worker(void *arg)
  */
 static void param_autosave(void)
 {
+	// TODO-JYW: TESTING-TESTING
+	PX4_INFO("param_autosave: autosave_scheduled: %d, autosave_disabled: %d.\n",
+			autosave_scheduled, autosave_disabled);
+	// TODO-JYW: TESTING-TESTING
+
 	if (autosave_scheduled || autosave_disabled) {
 		return;
 	}
@@ -668,8 +673,11 @@ param_set_internal(param_t param, const void *val, bool mark_saved, bool notify_
 	int result = -1;
 	bool params_changed = false;
 
-	PX4_DEBUG("param_set_internal params: param = %d, val = 0x%X, mark_saved: %d, notify_changes: %d",
+	// TODO-JYW: TESTING-TESTING
+	PX4_INFO("param_set_internal params: param = %d, val = 0x%X, mark_saved: %d, notify_changes: %d",
 		  param, val, (int)mark_saved, (int)notify_changes);
+//	PX4_DEBUG("param_set_internal params: param = %d, val = 0x%X, mark_saved: %d, notify_changes: %d",
+//		  param, val, (int)mark_saved, (int)notify_changes);
 
 	param_lock();
 
@@ -677,7 +685,9 @@ param_set_internal(param_t param, const void *val, bool mark_saved, bool notify_
 		return result;
 	}
 
-	mark_saved = true; //mark all params as saved
+	// TODO-JYW: Why is this here?
+	// Candidate fix.
+	// mark_saved = true; //mark all params as saved
 
 	if (param_values == NULL) {
 		utarray_new(param_values, &param_icd);
@@ -786,6 +796,9 @@ out:
 int
 param_set(param_t param, const void *val)
 {
+	// TODO-JYW: TESTING-TESTING:
+	PX4_INFO("param_set called.");
+
 	return param_set_internal(param, val, false, true);
 }
 
@@ -940,6 +953,8 @@ param_save_default(void)
 
 	const char *filename = param_get_default_file();
 
+	// TODO-JYW: TESTING - TESTING:
+	PX4_INFO("attempting to open file: %s", filename);
 	fd = PARAM_OPEN(filename, O_WRONLY | O_CREAT, PX4_O_MODE_666);
 
 	if (fd < 0) {

@@ -4224,6 +4224,7 @@ void *commander_low_prio_loop(void *arg)
 #ifdef __PX4_QURT
 						// TODO FIXME: on snapdragon the save happens too early when the params
 						// are not set yet. We therefore need to wait some time first.
+						PX4_INFO("Sleeping inside VEHICLE_CMD_PREFLIGHT_STORAGE");
 						usleep(1000000);
 #endif
 
