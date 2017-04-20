@@ -50,7 +50,11 @@
 #include <uORB/topics/input_rc.h>
 
 // Snapdraogon: use J15 (next to USB)
+#if defined(__PX4_QURT_EXCELSIOR)
+#define SPEKTRUM_UART_DEVICE_PATH "/dev/tty-12"
+#else
 #define SPEKTRUM_UART_DEVICE_PATH "/dev/tty-1"
+#endif
 
 #define UNUSED(x) (void)(x)
 

@@ -460,7 +460,7 @@ dsm_decode(hrt_abstime frame_time, uint16_t *values, uint16_t *num_values, bool 
 
 		/* scaled integer for decent accuracy while staying efficient */
 		value = ((((int)value - 1024) * 1000) / 1700) + 1500;
-
+#if !defined(__PX4_QURT)
 		/*
 		 * Store the decoded channel into the R/C input buffer, taking into
 		 * account the different ideas about channel assignement that we have.
@@ -483,7 +483,7 @@ dsm_decode(hrt_abstime frame_time, uint16_t *values, uint16_t *num_values, bool 
 		default:
 			break;
 		}
-
+#endif
 		values[channel] = value;
 	}
 
