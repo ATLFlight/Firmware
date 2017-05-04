@@ -41,3 +41,6 @@
 [submodule "src/drivers/gps/devices"]
 	path = src/drivers/gps/devices
 	url = https://github.com/PX4/GpsDrivers.git
+[submodule "src/Fast-RTPS"]
+	path = src/Fast-RTPS
+	url = https://github.com/eProsima/Fast-RTPS

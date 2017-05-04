@@ -10,6 +10,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PX4_SOURCE_DIR}/cmake/cmake_hexago
 
 set(CONFIG_SHMEM "1")
 
+set(THIRDPARTY "ON")
+
+set(VERBOSE "1")
+
 # This definition allows to differentiate if this just the usual POSIX build
 # or if it is for the Snapdragon.
 add_definitions(

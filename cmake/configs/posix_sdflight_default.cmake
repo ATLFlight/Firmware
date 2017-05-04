@@ -28,6 +28,8 @@ endif()
 set(CONFIG_SHMEM "1")
 
 set(config_module_list
+	Fast-RTPS
+
 	drivers/device
 	drivers/blinkm
 	drivers/pwm_out_sim
@@ -82,4 +84,6 @@ set(config_module_list
 	platforms/common
 	platforms/posix/px4_layer
 	platforms/posix/work_queue
+
+	examples/eprosima_cdr
 	)
